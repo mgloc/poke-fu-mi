@@ -1,7 +1,7 @@
 {
 	"chat": [
 		{
-			"id": "123456789",
+			"uuid": "123456789",
 			"users": ["bob", "alice"],
 			"messages": [
 				{ "username": "bob", "text": "hello world" },
