@@ -3,4 +3,4 @@ WORKDIR /app
 COPY requirements.txt /app
 RUN pip install -r requirements.txt
 ADD . /app/
-CMD ["python","-u","src.user.py"]
+CMD ["python","-u","src.chat.py"]
