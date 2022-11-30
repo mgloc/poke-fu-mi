@@ -14,7 +14,7 @@ from pathlib import Path
 import os
 
 #Getting env variables
-dotenv_path = Path('../.env')
+dotenv_path = Path('../../.env')
 load_dotenv(dotenv_path=dotenv_path)
 
 #Assign env variables
@@ -26,18 +26,28 @@ HOST = os.getenv('HOST')
 
 from models import Message, Chat
 
-# ------------------------------ ENDPOINTS ------------------------------
+# ------------------------------ VARIABLES ------------------------------
 
-
-#Variables
 PORT = PORT_CHAT
 
-with open('{}/databases/chat.json'.format("."), "r") as jsf:
+with open('{}/db/chat.json'.format("."), "r") as jsf:
    chat_dict = json.load(jsf)["chat"]
-   print(chat_dict)
    chat:list[Chat] = Chat.schema().load(chat_dict, many=True) 
-   print(chat)
 
+# ------------------------------ GET & SET FUNCTIONS ------------------------------
+
+def getChatById(chatid):
+   for c in chat :
+      if c.uuid == chatid :
+         return c
+   return None
+
+# ------------------------------ ERRORS FUNCTIONS ------------------------------
+def notFound(name):
+   return make_response(jsonify({'error': f'{name} not found'}),400)
+
+
+# ------------------------------ ENDPOINTS ------------------------------
 @app.route("/", methods=['GET'])
 def home():
    return make_response(jsonify({'message':'chat service api root'}))
@@ -46,21 +56,29 @@ def home():
 def get_chat():
    return make_response(Chat.schema().dumps(chat, many=True),200)
 
-@app.route("/messages/<chatid>",methods=['GET'])
-def get_chat_messages(chatid):
-   for c in chat :
-      if c.uuid == chatid :
-         return make_response(c.to_json(),200)
+@app.route("/chats/<chatid>",methods=['GET'])
+def get_chat_by_id(chatid):
+   c = getChatById(chatid)
+   if c : return make_response(c.to_json(),200)
+   return notFound("chat")
 
-   return make_response(jsonify({'error': 'chat not found'}),400)
-
-@app.route("/messages/<chatid>",methods=['POST'])
+@app.route("/chats/<chatid>/messages",methods=['POST'])
 def send_message(chatid):
-   for c in chat :
-      if c.uuid == chatid :
-         return make_response(c.to_json(),200)
+   body = request.json
+   try :
+      message = Message.from_dict(body)
+   except :
+      sample_request = Message("bob","sample text").to_dict()
+      return make_response(jsonify({
+         'error': "incorrect request",
+         "sample-request-body":sample_request,
+         "your-request-body": body
+         }),400)
 
-   return make_response(jsonify({'error': 'chat not found'}),400)
+   c = getChatById(chatid)
+   if not(c) : return notFound("chat")
+   c.messages.append(message)
+   return make_response(jsonify({'success': 'message sent',"message":message.to_dict()}),200)
 
 if __name__ == "__main__":
    print("Server running in port %s"%(PORT))
