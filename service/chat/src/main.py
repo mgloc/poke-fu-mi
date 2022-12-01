@@ -2,6 +2,7 @@
 import json
 import time
 import requests
+from uuid import uuid4
 from flask import Flask, jsonify, make_response, request
 #Flask app
 app = Flask(__name__)
@@ -33,6 +34,10 @@ PORT = PORT_CHAT
 with open('{}/db/chat.json'.format("."), "r") as jsf:
    chat_dict = json.load(jsf)["chat"]
    chat:list[Chat] = Chat.schema().load(chat_dict, many=True) 
+
+
+def generateId():
+   return str(uuid4().int)
 
 # ------------------------------ GET & SET FUNCTIONS ------------------------------
 
@@ -79,6 +84,28 @@ def send_message(chatid):
    if not(c) : return notFound("chat")
    c.messages.append(message)
    return make_response(jsonify({'success': 'message sent',"message":message.to_dict()}),200)
+
+@app.route("/chats",methods=['POST'])
+def create_chat():
+   try :
+      body = request.json
+   except :
+      return make_response(jsonify({
+         'error': "empty or incorrect body request"}),400)
+   try :
+      usernames = body["usernames"]
+   except :
+      sample_request = {"usernames":["caleb","bob"]}
+      return make_response(jsonify({
+         'error': "incorrect request",
+         "sample-request-body":sample_request,
+         "your-request-body": body
+         }),400)
+
+   new_chat = Chat(generateId(),usernames,messages=[])
+   chat.append(new_chat)
+   return make_response(jsonify({'success': 'chat added',"chat":new_chat.to_dict()}),200)
+
 
 if __name__ == "__main__":
    print("Server running in port %s"%(PORT))
