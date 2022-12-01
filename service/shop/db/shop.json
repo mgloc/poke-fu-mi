@@ -1,0 +1,17 @@
+{
+	"gamestores": [
+		{
+			"game_id": "pokefumi",
+			"prices": [
+				{
+					"item_id": "pokeball",
+					"item_price": 200
+				},
+				{
+					"item_id": "potion",
+					"item_price": 350
+				}
+			]
+		}
+	]
+}
