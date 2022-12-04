@@ -3,6 +3,7 @@ import json
 import time
 import requests
 from uuid import uuid4
+import random
 from flask import Flask, jsonify, make_response, request
 #Flask app
 app = Flask(__name__)
@@ -19,7 +20,6 @@ dotenv_path = Path('../../.env')
 load_dotenv(dotenv_path=dotenv_path)
 
 #Assign env variables
-
 PORT_shop = os.getenv('PORT_SHOP')
 HOST = os.getenv('HOST')
 
@@ -61,6 +61,9 @@ def getPokemonById(pokemonid):
          return pokemon
    return None
 
+def determineBestPokemon(pokemon1,pokemon2):
+   """Determine the best pokemon between pokemon1 and pokemon2"""
+   return random.randint(0,2)
 # ------------------------------ ERRORS FUNCTIONS ------------------------------
 def notFound(name):
    return make_response(jsonify({'error': f'{name} not found'}),400)
@@ -147,7 +150,7 @@ def play_pokemon(match_id):
    if the match is valid | ok
    if the player is valid | ok
    
-   if the player has already played
+   if the player has already played | ok
    if the item is in player's inventory
    """
    #check if the match is valid
@@ -157,9 +160,9 @@ def play_pokemon(match_id):
    #check if the player is valid
    body = request.json
    try :
-      player_move = Move.from_dict(body)
+      player_move:Move = Move.from_dict(body)
    except :
-      sample_request = Move("player1","pikachu").to_dict()
+      sample_request = Move("player1","pikachu1234","pikachu").to_dict()
       return make_response(jsonify({
          'error': "incorrect request",
          "sample-request-body":sample_request,
@@ -167,52 +170,36 @@ def play_pokemon(match_id):
          }),400)
    players:DualPlayers = match.players
    if not(players.contains(player_move.player_id)) : return notFound("player")
-   
+   player_key = players.get_key(player_move.player_id)
+
    #check if the player has already played
    current_round = match.current_round
-   #TODO
-   
+   if getattr(current_round,player_key+"_item_used") : return make_response(jsonify({'error': 'the player has already played'}),400)
+   else :
+      setattr(current_round,player_key+"_item_used",player_move.in_game_item_id)
+      if (current_round.player1_item_used and current_round.player2_item_used) :
+
+         #determine the winner
+         pokemon1 = getPokemonById(current_round.player1_item_used)
+         pokemon2 = getPokemonById(current_round.player2_item_used)
+         winner = determineBestPokemon(pokemon1,pokemon2)
+         match.winner = winner
+
+         match.round_history.append(current_round)
+         match.current_round = Round(
+            player1_item_used=None,
+            player2_item_used=None,
+            winner=None
+         )
+
+         # if all the rounds are finished
+         if len(match.round_history) == 3 :
+            match.status = "FINISHED"
+            past_matches.append(match)
+            matches.remove(match)
 
 
 
-
-
-
-
-
-
-
-
-@app.route("/gamestores/<gamestore_id>/prices",methods=['POST'])
-def set_price(gamestore_id):
-   body = request.json
-   try :
-      new_price = Price.from_dict(body)
-   except :
-      sample_request = Price("pokeball",300).to_dict()
-      return make_response(jsonify({
-         'error': "incorrect request",
-         "sample-request-body":sample_request,
-         "your-request-body": body
-         }),400)
-
-   game_store = getGameStoreById(gamestore_id)
-   if not(game_store) : return notFound("shop")
-   if new_price not in game_store.prices : game_store.prices.remove(new_price)
-   game_store.prices.append(new_price)
-      
-   return make_response(jsonify({'success': 'price updated',"price":new_price.to_dict()}),200)
-
-@app.route("/gamestores/<gamestore_id>/prices/<item_id>",methods=['GET'])
-def get_price(gamestore_id,item_id):
-   game_store = getGameStoreById(gamestore_id)
-   if not(game_store) : return notFound("shop")
-
-   for price in game_store.prices :
-      if price.item_id == item_id :
-         return make_response(jsonify(price.to_dict()),200)
-   return notFound("priceid")
-   
 
 
 if __name__ == "__main__":

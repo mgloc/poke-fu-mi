@@ -8,8 +8,8 @@ from enum import Enum
 @dataclass_json
 @dataclass
 class Round :
-    player1_item_used : str
-    player2_item_used :str
+    player1_item_used : str #in_game_id
+    player2_item_used :str #in_game_id
     winner : int # 1 or 2
 
 @dataclass_json
@@ -20,12 +20,18 @@ class DualPlayers :
 
     def contains(self,player_id):
         return self.player1 == player_id or self.player2 == player_id
+    
+    def getKey(self,player_id):
+        if self.player1 == player_id : return "player1"
+        if self.player2 == player_id : return "player2"
+        return None
 
 @dataclass_json
 @dataclass
 class Move :
     player_id : str
     item_id : str
+    in_game_item_id : str
 
 @dataclass_json
 @dataclass
@@ -55,6 +61,5 @@ class PokemonStats :
 @dataclass
 class Pokemon :
     item_id : str
-    in_game_id : str
     name : str
     stats : PokemonStats
