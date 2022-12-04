@@ -20,7 +20,7 @@ dotenv_path = Path('../../.env')
 load_dotenv(dotenv_path=dotenv_path)
 
 #Assign env variables
-PORT_shop = os.getenv('PORT_SHOP')
+PORT_pokefumi = os.getenv('PORT_POKEFUMI')
 HOST = os.getenv('HOST')
 
 # ------------------------------ MODELS ------------------------------
@@ -29,18 +29,19 @@ from models import Round,Match,PokemonStats,Pokemon,DualPlayers,Move
 
 # ------------------------------ VARIABLES ------------------------------
 
-PORT = PORT_shop
+PORT = PORT_pokefumi
 
 with open('{}/db/matches.json'.format("."), "r") as jsf:
-   matches_dict = json.load(jsf)["matches"]
+   file_json = json.load(jsf)
+   matches_dict = file_json["matches"]
    matches:list[Match] = Match.schema().load(matches_dict, many=True) 
    
-   past_matches_dict = json.load(jsf)["past_matches"]
+   past_matches_dict = file_json["past_matches"]
    past_matches:list[Match] = Match.schema().load(past_matches_dict, many=True) 
 
 
 with open('{}/db/pokemon.json'.format("."), "r") as jsf:
-   pokemons_dict = json.load(jsf)["pokemons"]
+   pokemons_dict = json.load(jsf)
    pokemons:list[Pokemon] = Pokemon.schema().load(pokemons_dict, many=True) 
 
 
@@ -57,13 +58,51 @@ def getMatchById(matchid):
 
 def getPokemonById(pokemonid):
    for pokemon in pokemons :
-      if pokemon.match_id == pokemonid :
+      if pokemon.item_id == pokemonid :
          return pokemon
    return None
 
+# ------------------------------ POKEMONS RELATED FUNCS ------------------------------
+
+# create a dict with pokemon weakness relative to the type
+pokemon_weakness = {
+   "fire" : ["water","ground","rock"],
+   "water" : ["grass","electric"],
+   "grass" : ["fire","ice","poison","flying","bug"],
+   "electric" : ["ground"],
+   "ice" : ["fire","fighting","rock","steel"],
+   "fighting" : ["flying","psychic","fairy"],
+   "poison" : ["ground","psychic"],
+   "ground" : ["water","grass","ice"],
+   "flying" : ["electric","ice","rock"],
+   "psychic" : ["bug","ghost","dark"],
+   "bug" : ["fire","flying","rock"],
+   "rock" : ["water","grass","fighting","ground","steel"],
+   "ghost" : ["ghost","dark"],
+   "dragon" : ["ice","dragon","fairy"],
+   "dark" : ["fighting","bug","fairy"],
+   "steel" : ["fire","fighting","ground"],
+   "fairy" : ["poison","steel"]
+}
+
+def pokemonStrength(pokemon1,pokemon2):
+   """Return a number based on the stats of the first given pokemon on the second, more the number is high, more the first pokemon is strong"""
+   pokemon2_weakness = (pokemon_weakness[pokemon2.stats.f_type] if pokemon2.stats.f_type != None else []) + (pokemon_weakness[pokemon2.stats.s_type] if pokemon2.stats.s_type != None else [])
+   pokemon_1_effectiveness = sum([1 for _type in [pokemon1.stats.f_type,pokemon1.stats.s_type] if _type in pokemon2_weakness])
+   pokemon_1_totalforce = pokemon1.stats.pv + pokemon1.stats.power*(1+pokemon_1_effectiveness/2)
+   return pokemon_1_totalforce
+
+
 def determineBestPokemon(pokemon1,pokemon2):
    """Determine the best pokemon between pokemon1 and pokemon2"""
-   return random.randint(0,2)
+   pokemon1_score = pokemonStrength(pokemon1,pokemon2)
+   pokemon2_score = pokemonStrength(pokemon2,pokemon1)
+   if pokemon1_score > pokemon2_score:
+      return 1
+   elif pokemon1_score < pokemon2_score:
+      return 2
+   else :
+      return random.randint(1,2)
 # ------------------------------ ERRORS FUNCTIONS ------------------------------
 def notFound(name):
    return make_response(jsonify({'error': f'{name} not found'}),400)
@@ -82,8 +121,8 @@ def get_match():
    return make_response(Match.schema().dumps(matches, many=True),200)
 
 @app.route("/matches/<matchid>",methods=['GET'])
-def get_match_by_id(match_id):
-   match = getMatchById(match_id)
+def get_match_by_id(matchid):
+   match = getMatchById(matchid)
    if match : return make_response(match.to_json(),200)
    return notFound("match")
 
@@ -111,7 +150,7 @@ def create_match():
          }),400)
 
    new_match = Match(
-      match_id=uuid4(),
+      match_id=str(uuid4().int),
       status="CREATED",
       round_history=[],
       players=players,
@@ -127,7 +166,7 @@ def create_match():
 
    return make_response(jsonify({'success': 'match created',"match":new_match.to_dict()}),200)
 
-@app.route("/matches/<matchid>/play",methods=['GET'])
+@app.route("/matches/<match_id>/play",methods=['GET'])
 def who_need_to_play(match_id):
    match = getMatchById(match_id)
    if not(match) : return notFound("match")
@@ -139,7 +178,7 @@ def who_need_to_play(match_id):
 
    return make_response(jsonify({'who_need_to_play': liste}),200)
 
-@app.route("/matches/<matchid>/play",methods=['POST'])
+@app.route("/matches/<match_id>/play",methods=['POST'])
 def play_pokemon(match_id):
    """
    need :
@@ -176,14 +215,18 @@ def play_pokemon(match_id):
    current_round = match.current_round
    if getattr(current_round,player_key+"_item_used") : return make_response(jsonify({'error': 'the player has already played'}),400)
    else :
+      #TODO CHECK IF THE ITEM IS IN PLAYER'S INVENTORY
+      #TODO CHECK IF THE ITEM IS A POKEMON
+
       setattr(current_round,player_key+"_item_used",player_move.in_game_item_id)
+
       if (current_round.player1_item_used and current_round.player2_item_used) :
 
          #determine the winner
          pokemon1 = getPokemonById(current_round.player1_item_used)
          pokemon2 = getPokemonById(current_round.player2_item_used)
          winner = determineBestPokemon(pokemon1,pokemon2)
-         match.winner = winner
+         current_round.winner = winner
 
          match.round_history.append(current_round)
          match.current_round = Round(
@@ -195,9 +238,13 @@ def play_pokemon(match_id):
          # if all the rounds are finished
          if len(match.round_history) == 3 :
             match.status = "FINISHED"
+            match.winner = 1 if len([_round for _round in match.round_history if _round.winner == 1]) > 1 else 2
             past_matches.append(match)
             matches.remove(match)
 
+         return make_response(jsonify({'success': 'player played','pokemon_played':player_move.in_game_item_id,'result':current_round.to_dict()}),200)
+      
+      return make_response(jsonify({'success': 'player played','pokemon_played':player_move.in_game_item_id,'result':'waiting for the opponent to play'}),200)
 
 
 
