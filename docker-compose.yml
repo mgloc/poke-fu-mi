@@ -3,4 +3,20 @@ services:
   chat:
     build: ./service/chat/
     ports:
-      - "3200:3200"
+      - "${PORT_CHAT}:${PORT_CHAT}"
+    env_file:
+      - ".env"
+
+  pokefumi:
+    build: ./service/pokefumi/
+    ports:
+      - "${PORT_POKEFUMI}:${PORT_POKEFUMI}"
+    env_file:
+      - ".env"
+
+  shop:
+    build: ./service/shop/
+    ports:
+      - "${PORT_SHOP}:${PORT_SHOP}"
+    env_file:
+      - ".env"
