@@ -82,7 +82,7 @@ def set_price(gamestore_id):
 
    game_store = getGameStoreById(gamestore_id)
    if not(game_store) : return notFound("shop")
-   if new_price not in game_store.prices : game_store.prices.remove(new_price)
+   if new_price in game_store.prices : game_store.prices.remove(new_price)
    game_store.prices.append(new_price)
       
    return make_response(jsonify({'success': 'price updated',"price":new_price.to_dict()}),200)
