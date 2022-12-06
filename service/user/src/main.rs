@@ -55,12 +55,12 @@ impl Display for ErrNoId {
     }
 }
 
-struct UsersState {
+struct DataState {
     users: Mutex<Vec<User>>,
 }
 
 #[post("/users")]
-async fn create_user(user: web::Json<User>, data: web::Data<UsersState>) -> impl Responder {
+async fn create_user(user: web::Json<User>, data: web::Data<DataState>) -> impl Responder {
     let new_user: User = user.0;
     let mut users = data.users.lock().unwrap();
     let response = serde_json::to_string(&new_user).unwrap();
@@ -72,7 +72,7 @@ async fn create_user(user: web::Json<User>, data: web::Data<UsersState>) -> impl
 }
 
 #[get("/users")]
-async fn get_users(data: web::Data<UsersState>) -> impl Responder {
+async fn get_users(data: web::Data<DataState>) -> impl Responder {
     let users = data.users.lock().unwrap();
 
    let response = serde_json::to_string(&(*users)).unwrap();
@@ -83,7 +83,7 @@ async fn get_users(data: web::Data<UsersState>) -> impl Responder {
 }
 
 #[get("/users/{id}")]
-async fn get_user(id: web::Path<String>, data: web::Data<UsersState>) -> Result<User, ErrNoId> {
+async fn get_user(id: web::Path<String>, data: web::Data<DataState>) -> Result<User, ErrNoId> {
     let user_id: String = String::from(&*id);
     let users = data.users.lock().unwrap();
 
@@ -108,7 +108,7 @@ async fn get_user(id: web::Path<String>, data: web::Data<UsersState>) -> Result<
 }
 
 #[put("/users/{id}")]
-async fn update_user(id: web::Path<String>, user: web::Json<User>, data: web::Data<UsersState>) -> Result<HttpResponse, ErrNoId> {
+async fn update_user(id: web::Path<String>, user: web::Json<User>, data: web::Data<DataState>) -> Result<HttpResponse, ErrNoId> {
     let user_id: String = String::from(&*id);
 
     let new_user: User = user.0;
@@ -139,7 +139,7 @@ async fn update_user(id: web::Path<String>, user: web::Json<User>, data: web::Da
 }
 
 #[delete("/users/{id}")]
-async fn delete_user(id: web::Path<String>, data: web::Data<UsersState>) -> Result<User, ErrNoId> {
+async fn delete_user(id: web::Path<String>, data: web::Data<DataState>) -> Result<User, ErrNoId> {
     let user_id: String = String::from(&*id);
     let mut users = data.users.lock().unwrap();
 
@@ -163,7 +163,7 @@ async fn delete_user(id: web::Path<String>, data: web::Data<UsersState>) -> Resu
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let users_state = web::Data::new(UsersState {
+    let users_state = web::Data::new(DataState {
         users: Mutex::new(vec![
         User {
             id: String::from("4919b8dd-a6c3-4f5b-9739-c7060d8847dc"),
