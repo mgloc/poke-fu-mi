@@ -67,15 +67,8 @@ def get_stats_by_username(username):
    if stat : return make_response(stat.to_json(),200)
    return notFound("stats for user")
 
-@app.route("/stats/<username>/win",methods=['POST'])
-def countWin(username):
-   stat = getStatsByUsername(username)
-   if not(stat) : return notFound("stats")
-   stat.gamestats.win += 1
-   return make_response(jsonify({'success': 'number of win incremented by one',"current wins":stat.gamestats.win}),200)
-
 @app.route("/stats/win",methods=['POST'])
-def countLose(username):
+def countWin():
    body = request.json
    try :
       credentials:StatAndUser = StatAndUser.from_dict(body)
@@ -90,10 +83,35 @@ def countLose(username):
    
    stat = getStatsByUsername(credentials.username)
    if not(stat) : return notFound("stats")
-   if not(len([gamestat for gamestat in stat.gamestats if gamestat.game_id == credentials.game_id]) > 0) :
+   gamestat = stat.getGameStatsById(credentials.game_id)
+   if not(gamestat):
+      stat.gamestats.append(GameStats(game_id=credentials.game_id,win=1,lose=0))
+   else :
+      gamestat.win += 1
+   return make_response(jsonify({'success': 'number of win incremented by one',"current win":gamestat.win}),200)
+
+@app.route("/stats/lose",methods=['POST'])
+def countLose():
+   body = request.json
+   try :
+      credentials:StatAndUser = StatAndUser.from_dict(body)
+   except :
+      sample_request = StatAndUser("matteo","pokefumi").to_dict()
+      return make_response(jsonify({
+         'error': "incorrect request",
+         "sample-request-body":sample_request,
+         "your-request-body": body
+         }),400)
+
+   
+   stat = getStatsByUsername(credentials.username)
+   if not(stat) : return notFound("stats")
+   gamestat = stat.getGameStatsById(credentials.game_id)
+   if not(gamestat):
       stat.gamestats.append(GameStats(game_id=credentials.game_id,win=0,lose=1))
-   #TODO : increment lose  of the game_id
-   return make_response(jsonify({'success': 'number of lose incremented by one',"current lose":stat.gamestats.lose}),200)
+   else :
+      gamestat.lose += 1
+   return make_response(jsonify({'success': 'number of lose incremented by one',"current lose":gamestat.lose}),200)
 
 
 @app.route("/stats",methods=['POST'])

@@ -20,3 +20,10 @@ services:
       - "${PORT_SHOP}:${PORT_SHOP}"
     env_file:
       - ".env"
+
+  statistics:
+    build: ./service/statistics/
+    ports:
+      - "${PORT_STATS}:${PORT_STATS}"
+    env_file:
+      - ".env"

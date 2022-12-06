@@ -15,6 +15,12 @@ class Stats:
     username: str
     gamestats:list[GameStats]
 
+    def getGameStatsById(self, game_id:str):
+        for gamestat in self.gamestats:
+            if gamestat.game_id == game_id:
+                return gamestat
+        return None
+
 @dataclass_json
 @dataclass
 class StatAndUser:
