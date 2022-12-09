@@ -8,10 +8,17 @@ use serde::{Serialize, Deserialize};
 use std::fmt::Display;
 use std::sync::Mutex;
 
+use utoipa::{ToSchema};
+
+use utoipa::{
+    openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
+    Modify, OpenApi,
+};
+
 static PATH: &str = "data/users.json";
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
 struct User {
     id: String,
     name: String,
@@ -31,7 +38,7 @@ impl Responder for User {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 struct ErrNoId {
     id: String,
     err: String,
@@ -59,6 +66,13 @@ struct DataState {
     users: Mutex<Vec<User>>,
 }
 
+#[utoipa::path(
+        request_body = User,
+        responses(
+                (status = 201, description = "User created successfully", body = User),
+                (status = 409, description = "User with id already exists", body = ResponseError)
+        )
+)]
 #[post("/users")]
 async fn create_user(user: web::Json<User>, data: web::Data<DataState>) -> impl Responder {
     let new_user: User = user.0;
@@ -71,6 +85,11 @@ async fn create_user(user: web::Json<User>, data: web::Data<DataState>) -> impl 
     .body(response)
 }
 
+#[utoipa::path(
+        responses(
+                (status = 200, description = "List current Users", body = [User])
+        )
+)]
 #[get("/users")]
 async fn get_users(data: web::Data<DataState>) -> impl Responder {
     let users = data.users.lock().unwrap();
@@ -82,6 +101,15 @@ async fn get_users(data: web::Data<DataState>) -> impl Responder {
    .body(response)
 }
 
+#[utoipa::path(
+        responses(
+                (status = 200, description = "User found from storage", body = User),
+                (status = 404, description = "User not found by id", body = ErrNoId)
+        ),
+params(
+        ("id", description = "Unique storage id of User")
+)
+)]
 #[get("/users/{id}")]
 async fn get_user(id: web::Path<String>, data: web::Data<DataState>) -> Result<User, ErrNoId> {
     let user_id: String = String::from(&*id);
@@ -107,6 +135,19 @@ async fn get_user(id: web::Path<String>, data: web::Data<DataState>) -> Result<U
     }
 }
 
+#[utoipa::path(
+        responses(
+                (status = 200, description = "User modified successfully"),
+                (status = 401, description = "Unauthorized to modify User", body = ErrorResponse),
+                (status = 404, description = "User not found by id", body = ErrNoId)
+        ),
+params(
+        ("id", description = "Unique storage id of User")
+),
+security(
+        ("api_key" = [])
+)
+)]
 #[put("/users/{id}")]
 async fn update_user(id: web::Path<String>, user: web::Json<User>, data: web::Data<DataState>) -> Result<HttpResponse, ErrNoId> {
     let user_id: String = String::from(&*id);
@@ -138,6 +179,19 @@ async fn update_user(id: web::Path<String>, user: web::Json<User>, data: web::Da
     }
 }
 
+#[utoipa::path(
+        responses(
+                (status = 200, description = "User deleted successfully"),
+                (status = 401, description = "Unauthorized to delete User", body = ErrorResponse),
+                (status = 404, description = "User not found by id", body = ErrNoId)
+        ),
+params(
+        ("id", description = "Unique storage id of User")
+),
+security(
+        ("api_key" = [])
+)
+)]
 #[delete("/users/{id}")]
 async fn delete_user(id: web::Path<String>, data: web::Data<DataState>) -> Result<User, ErrNoId> {
     let user_id: String = String::from(&*id);
@@ -182,6 +236,25 @@ async fn main() -> std::io::Result<()> {
         ])
     });
 
+    #[derive(OpenApi)]
+    #[openapi(
+            paths(get_users,
+            create_user,
+            delete_user,
+            get_user,
+            update_user
+            ),
+    components(
+            schemas(User, ErrNoId)
+    ),
+    tags(
+            (name = "users", description = "User management endpoints.")
+    )
+    )]
+    struct ApiDoc;
+
+    println!("{}", ApiDoc::openapi().to_pretty_json().unwrap());
+
     HttpServer::new(move || {
         App::new()
         .app_data(users_state.clone())
@@ -190,8 +263,12 @@ async fn main() -> std::io::Result<()> {
         .service(get_user)
         .service(update_user)
         .service(delete_user)
+        .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}")
+                .url("/api-doc/openapi.json", ApiDoc::openapi()),
+        )
     })
-    .bind(("127.0.0.1", 8000))?
+    .bind(("127.0.0.1", 8600))?
     .run()
     .await
 }
